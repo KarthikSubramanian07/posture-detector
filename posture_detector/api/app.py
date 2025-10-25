@@ -1,7 +1,10 @@
+
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template
-import os
-import re
-from datetime import datetime
+from flask_socketio import SocketIO
+import os, re, time, threading
 
 BASE_DIR = os.path.dirname(__file__)
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -12,66 +15,78 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, "static")
 )
 
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 def get_latest_log():
-    """Find the most recently created log file."""
-    log_files = [
+    files = [
         os.path.join(LOG_DIR, f)
         for f in os.listdir(LOG_DIR)
         if f.startswith("posture_") and f.endswith(".log")
     ]
-    if not log_files:
-        return None
-    return max(log_files, key=os.path.getctime)
+    return max(files, key=os.path.getctime) if files else None
 
-
-def parse_log(file_path):
-    """Read the log file and extract posture + confidence data."""
-    entries = []
+def parse_log(path):
     pattern = re.compile(
         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - user=(\w+) posture=(\w+) confidence=([\d.]+)"
     )
-
-    with open(file_path, "r") as f:
+    entries = []
+    with open(path) as f:
         for line in f:
-            match = pattern.search(line)
-            if match:
-                timestamp, user, posture, confidence = match.groups()
+            m = pattern.search(line)
+            if m:
+                t,u,p,c = m.groups()
                 entries.append({
-                    "timestamp": timestamp,
-                    "user": user,
-                    "posture": posture,
-                    "confidence": float(confidence)
+                    "timestamp": t, "user": u,
+                    "posture": p, "confidence": float(c)
                 })
     return entries
 
+def get_dashboard_data():
+    log = get_latest_log()
+    if not log:
+        return None
+    entries = parse_log(log)
+    ts = [e["timestamp"] for e in entries]
+    cf = [e["confidence"] for e in entries]
+    correct = [1 if e["posture"]=="correct" else 0 for e in entries]
+    acc = sum(correct)/len(correct)*100 if correct else 0
+    return {
+        "log_name": os.path.basename(log),
+        "entries": entries[-50:],
+        "timestamps": ts[-50:],
+        "confidences": cf[-50:],
+        "accuracy": round(acc,2)
+    }
 
 @app.route("/")
 def dashboard():
-    latest_log = get_latest_log()
-    if not latest_log:
+    data = get_dashboard_data()
+    if not data:
         return "<h2>No log files found in /logs directory.</h2>"
+    return render_template("dashboard.html", **data)
 
-    entries = parse_log(latest_log)
-    timestamps = [e["timestamp"] for e in entries]
-    confidences = [e["confidence"] for e in entries]
-    posture_status = [1 if e["posture"] == "correct" else 0 for e in entries]
+def watch_logs():
+    last_state = None
+    while True:
+        log = get_latest_log()
+        if not log:
+            time.sleep(2)
+            continue
+        try:
+            content = open(log).read()
+            if content != last_state:
+                last_state = content
+                data = get_dashboard_data()
+                if data:
+                    socketio.emit("update", data)
+                    print(f"[SOCKET] Update sent: {data['log_name']}")
+        except Exception as e:
+            print("Watcher error:", e)
+        time.sleep(2)
 
-    accuracy = (
-        sum(posture_status) / len(posture_status) * 100 if posture_status else 0
-    )
-
-    return render_template(
-        "dashboard.html",
-        entries=entries[-50:],
-        timestamps=timestamps[-50:],
-        confidences=confidences[-50:],
-        posture_status=posture_status[-50:],
-        accuracy=round(accuracy, 2),
-        log_name=os.path.basename(latest_log),
-    )
-
+threading.Thread(target=watch_logs, daemon=True).start()
 
 if __name__ == "__main__":
     os.makedirs(LOG_DIR, exist_ok=True)
-    app.run(port=3500, debug=True)
+    print("✅ Server starting with Eventlet on http://localhost:3500")
+    socketio.run(app, host="0.0.0.0", port=3500, debug=False, use_reloader=False)
