@@ -1,21 +1,43 @@
-# writer.py
-import time
+# data_handler.py
+import sys
+import json
 import logging
+from pathlib import Path
 
-# Configure the logger
-logger = logging.getLogger("demo_logger")
+LOG_FILE = Path("posture_data.log")
+
+# Setup logging
+logger = logging.getLogger("posture_data")
 logger.setLevel(logging.INFO)
-
-# Write logs to a file called "demo.log"
-handler = logging.FileHandler("demo.log", mode='a')
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+handler = logging.FileHandler(LOG_FILE, mode='a')
+formatter = logging.Formatter("%(asctime)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# Continuously write logs
-i = 0
-print("Writer started — writing logs to demo.log ...")
-while True:
-    i += 1
-    logger.info(f"Log message number {i}")
-    time.sleep(2)  # every 2 seconds
+# Track stats (optional)
+STATS_FILE = Path("summary.json")
+
+def update_summary(status):
+    """Compute overall correctness percentage."""
+    if not STATS_FILE.exists():
+        summary = {"correct": 0, "incorrect": 0}
+    else:
+        summary = json.loads(STATS_FILE.read_text())
+
+    summary[status] = summary.get(status, 0) + 1
+    total = summary["correct"] + summary["incorrect"]
+    summary["accuracy"] = round(summary["correct"] / total, 3)
+    STATS_FILE.write_text(json.dumps(summary, indent=2))
+    return summary
+
+if __name__ == "__main__":
+    # Expecting JSON input from JS
+    raw_input = sys.stdin.read()
+    try:
+        data = json.loads(raw_input)
+        status = data.get("posture_status", "unknown")
+        logger.info(f"Received posture status: {status}")
+        summary = update_summary(status)
+        print(json.dumps(summary))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
