@@ -16,7 +16,13 @@ app = Flask(__name__)
 @app.route('/api/get_depth', methods=['GET'])
 def get_depth():
     print("started")
-    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf", device = "mps")
+    if (torch.cuda.is_available()):
+        device = "cuda"
+    elif (torch.backends.mps.is_available()):
+        device = "mps"
+    else:
+        device = "cpu"
+    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf", device = device)
     url = 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
     image = Image.open(requests.get(url, stream=True).raw)
     depth = pipe(image)["depth"]
@@ -26,7 +32,12 @@ def get_depth():
 @app.route('/api/get_face', methods=['GET'])
 def get_feature():
     print("started")
-    device = torch.device("mps")
+    if (torch.cuda.is_available()):
+        device = torch.device("cuda")
+    elif (torch.backends.mps.is_available()):
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     image_processor = SegformerImageProcessor.from_pretrained("jonathandinu/face-parsing")
     model = SegformerForSemanticSegmentation.from_pretrained("jonathandinu/face-parsing")
     model.to(device)
