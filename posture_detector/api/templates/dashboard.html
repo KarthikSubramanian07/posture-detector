@@ -1,43 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="5">
-  <title>Posture Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 30px; background: #fafafa; }
-    h1 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #f0f0f0; }
-    tr.good { background-color: #e6ffe6; }
-    tr.slouching { background-color: #ffe6e6; }
-  </style>
+  <meta charset="UTF-8" />
+  <title>Posture Confidence Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
 </head>
-<body>
-  <h1>🧍 Posture Monitoring Dashboard</h1>
-  <p style="text-align:center;">Auto-refreshes every 5 seconds</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>User</th>
-        <th>Status</th>
-        <th>Angle (°)</th>
-        <th>Confidence</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for e in entries %}
-      <tr class="{{ e.status }}">
-        <td>{{ e.timestamp }}</td>
-        <td>{{ e.user }}</td>
-        <td>{{ e.status }}</td>
-        <td>{{ "%.2f"|format(e.angle) }}</td>
-        <td>{{ "%.2f"|format(e.confidence) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+<body class="bg-gray-900 text-gray-100">
+  <div class="max-w-6xl mx-auto py-10">
+    <h1 class="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+      Posture Confidence Dashboard
+    </h1>
+    <p class="text-center text-gray-400 mb-8">
+      Latest session: <span class="font-semibold text-blue-300">{{ log_name }}</span><br>
+      Accuracy: <span class="font-semibold text-green-400">{{ accuracy }}%</span>
+    </p>
+
+    <!-- Chart -->
+    <div class="bg-gray-800 shadow-xl rounded-xl p-6 mb-10">
+      <canvas id="confidenceChart" height="120"></canvas>
+    </div>
+
+    <!-- Recent Entries Table -->
+    <div class="bg-gray-800 shadow-xl rounded-xl p-6">
+      <h2 class="text-xl font-semibold mb-4 text-gray-300">Recent Entries</h2>
+      <table class="min-w-full border border-gray-700 text-sm text-gray-200">
+        <thead class="bg-gray-700">
+          <tr>
+            <th class="py-2 px-4 border-b text-left">Timestamp</th>
+            <th class="py-2 px-4 border-b text-left">User</th>
+            <th class="py-2 px-4 border-b text-left">Posture</th>
+            <th class="py-2 px-4 border-b text-left">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr class="{% if e.posture == 'correct' %}bg-green-900/40{% else %}bg-red-900/40{% endif %}">
+            <td class="py-1 px-4 border-b border-gray-700">{{ e.timestamp }}</td>
+            <td class="py-1 px-4 border-b border-gray-700">{{ e.user }}</td>
+            <td class="py-1 px-4 border-b border-gray-700 font-semibold {% if e.posture == 'correct' %}text-green-400{% else %}text-red-400{% endif %}">
+              {{ e.posture }}
+            </td>
+            <td class="py-1 px-4 border-b border-gray-700">{{ e.confidence }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart.js Script -->
+  <script>
+    const ctx = document.getElementById("confidenceChart").getContext("2d");
+
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: {{ timestamps | tojson }},
+        datasets: [
+          {
+            label: "Confidence",
+            data: {{ confidences | tojson }},
+            borderColor: "rgba(59, 130, 246, 1)",   // vivid blue line
+            backgroundColor: "rgba(59, 130, 246, 0.15)", // subtle fill
+            fill: true,
+            tension: 0.35,
+            borderWidth: 3,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "rgba(147,197,253,1)",
+            pointBorderColor: "#fff",
+          }
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            ticks: {
+              color: "#9ca3af",
+              autoSkip: true,
+              maxTicksLimit: 8,
+              callback: function(value) {
+                const label = this.getLabelForValue(value);
+                // show only HH:MM:SS
+                return label.split(" ")[1] || label;
+              },
+            },
+            grid: { color: "rgba(255,255,255,0.05)" },
+          },
+          y: {
+            beginAtZero: true,
+            min: 0,
+            max: 1,
+            ticks: {
+              stepSize: 0.1,
+              color: "#9ca3af",
+            },
+            grid: { color: "rgba(255,255,255,0.05)" },
+            title: { display: true, text: "Confidence", color: "#d1d5db" },
+          },
+        },
+        plugins: {
+          legend: {
+            labels: { color: "#e5e7eb" },
+            position: "bottom",
+          },
+        },
+      },
+    });
+  </script>
 </body>
 </html>

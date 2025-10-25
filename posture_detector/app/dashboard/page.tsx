@@ -3,7 +3,7 @@ import React from "react";
 
 export default function DashboardPage() {
   const openFlaskDashboard = () => {
-    window.open("http://127.0.0.1:5000", "_blank"); // 打开 Flask 仪表板
+    window.open("http://127.0.0.1:3500", "_blank"); 
   };
 
   return (
@@ -22,10 +22,6 @@ export default function DashboardPage() {
       >
         Open Flask Dashboard →
       </button>
-
-      <p className="text-sm text-slate-400 mt-6">
-        Make sure Flask is running on port 5000 before clicking the button.
-      </p>
     </main>
   );
 }
