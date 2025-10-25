@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { 
-  useRoomContext, 
+import {
+  useRoomContext,
   useLocalParticipant,
-  useTracks 
+  useTracks
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
+import { AppConfig } from '@/config/app.config';
 
 interface PosturePalRoomProps {
   onStopRecording: () => void;
@@ -30,7 +31,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const [pausedTime, setPausedTime] = useState(0);
   const [sessionId] = useState(`posturepal-${Date.now()}`);
 
-  const FPS = 5;
+  const CAPTURE_INTERVAL_MS = AppConfig.recording.captureIntervalSeconds * 1000;
   const tracks = useTracks([Track.Source.Camera]);
 
   useEffect(() => {
@@ -108,8 +109,6 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
 
   useEffect(() => {
     if (isCapturing && isConnected && !isPaused) {
-      const interval = 1000 / FPS;
-
       frameIntervalRef.current = setInterval(() => {
         const frame = captureFrame();
         if (frame) {
@@ -117,7 +116,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
           setFrameCount(currentFrameNumber);
           uploadFrame(frame, currentFrameNumber);
         }
-      }, interval);
+      }, CAPTURE_INTERVAL_MS);
 
       return () => {
         if (frameIntervalRef.current) {
@@ -125,7 +124,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
         }
       };
     }
-  }, [isCapturing, isConnected, isPaused, frameCount]);
+  }, [isCapturing, isConnected, isPaused, frameCount, CAPTURE_INTERVAL_MS]);
 
   useEffect(() => {
     if (isConnected && !isCapturing) {
@@ -233,7 +232,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                     : 'bg-gradient-to-r from-purple-600 to-pink-600'
                 }`}>
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                  <span>{isPaused ? 'PAUSED' : `CAPTURING @ ${FPS} FPS`}</span>
+                  <span>{isPaused ? 'PAUSED' : `CAPTURING (1 frame / ${AppConfig.recording.captureIntervalSeconds}s)`}</span>
                 </div>
               )}
 

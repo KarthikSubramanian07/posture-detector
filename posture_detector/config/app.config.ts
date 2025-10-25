@@ -8,7 +8,7 @@
 export const AppConfig = {
   // Recording Settings
   recording: {
-    fps: 5, // Frames per second for capture
+    captureIntervalSeconds: 30, // Capture 1 frame every X seconds (30 = 1 frame per 30 seconds)
     maxSessionDuration: 7200, // Maximum session duration in seconds (2 hours)
     autoSaveInterval: 30, // Auto-save interval in seconds
   },
