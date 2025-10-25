@@ -1,8 +1,5 @@
-from flask import Flask, request
+
 from PIL import Image
-import requests
-import base64
-import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import numpy as np
@@ -12,11 +9,8 @@ import os
 print(torch.__version__)
 print(torch.torch.backends.mps.is_available())
 print(torch.backends.mps.is_built())
-app = Flask(__name__)
 
-@app.route('/api/get_depth', methods=['GET'])
-def get_depth():
-    print("started")
+def get_depth(id):
     if (torch.cuda.is_available()):
         device = "cuda"
     elif (torch.backends.mps.is_available()):
@@ -26,13 +20,10 @@ def get_depth():
     pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf", device = device)
     image = Image.open(get_most_recent_file(f'{get_most_recent_dir("../storage/sessions/")}/frames'))
     depth = pipe(image)["depth"]
-    depth.show()
+    depth.save(f"../face/{id}_depth.png")
     return "completed"
 
-@app.route('/api/get_face', methods=['GET'])
-def get_feature():
-    print("started")
-    feature = request.args.get('feature')
+def get_feature(id, feature):
     if (torch.cuda.is_available()):
         device = torch.device("cuda")
     elif (torch.backends.mps.is_available()):
@@ -66,7 +57,7 @@ def get_feature():
     labels_viz = (labels.cpu().numpy() == int(feature)).astype(np.uint8)*255
     print(labels_viz)
     img = Image.fromarray(labels_viz, 'L')
-    img.show()
+    img.save(f"../face/{id}_{feature}_feature.png", "PNG")
     return "finished"
 
 def get_most_recent_file(directory_path):
@@ -95,5 +86,3 @@ def get_most_recent_dir(directory_path):
     most_recent_dir = max(dirs, key=os.path.getmtime)
     return most_recent_dir
 
-if __name__ == '__main__':
-    app.run(port=5000, debug=True)
