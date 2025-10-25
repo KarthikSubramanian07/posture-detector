@@ -1,10 +1,11 @@
 import cv2
 import numpy as np
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from get_depth import get_depth, get_feature
+from flask_cors import CORS
 # Paths to images
 app = Flask(__name__)
-
+CORS(app)
 @app.route('/api/get_metrics', methods=['GET'])
 def compute_torsion_id():
     id = request.args.get('id')
@@ -14,7 +15,7 @@ def compute_torsion_id():
     depth_path = f"../face/{id}_depth.png"
     face_path = f"../face/{id}_{1}_feature.png"
     chest_path = f"../face/{id}_{18}_feature.png"
-    return str(compute_torsion_principal_axis(depth_path, face_path, chest_path))
+    return jsonify(compute_torsion_principal_axis(depth_path, face_path, chest_path))
 
 def compute_torsion_principal_axis(depth_img_path, face_mask_path, chest_mask_path):
     # Load masks
@@ -59,7 +60,13 @@ def compute_torsion_principal_axis(depth_img_path, face_mask_path, chest_mask_pa
         "depth_diff": float(depth_diff),
         "torsion_angle": float(torsion_angle)
     }
+@app.after_request
+def handle_options(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With"
 
+    return response
 # Run
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
