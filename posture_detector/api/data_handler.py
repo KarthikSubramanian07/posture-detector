@@ -5,7 +5,10 @@ import random
 import time
 from pathlib import Path
 from datetime import datetime
-
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+app = Flask(__name__)
+CORS(app)
 # Create logs directory
 LOG_DIR = Path(__file__).parent / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -43,13 +46,15 @@ def update_summary(status: str):
     STATS_FILE.write_text(json.dumps(summary, indent=2))
     return summary
 
-
-def log(posture: int, confidence: float):
+@app.route('/api/log_posture', methods=['GET'])
+def log():
     """
     Logs posture data (1=correct, 0=incorrect) and confidence value.
     Updates summary.json and returns it as dict.
     Can be imported and called from Flask or Node.
     """
+    posture = request.args.get('posture')
+    confidence = float(request.args.get('confidence'))
     status = "correct" if posture == 1 else "incorrect"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -57,25 +62,28 @@ def log(posture: int, confidence: float):
     logger.info(log_line)
 
     summary = update_summary(status)
-    return {"timestamp": timestamp, "status": status, "confidence": confidence, "summary": summary}
+    return jsonify({"timestamp": timestamp, "status": status, "confidence": confidence, "summary": summary})
 
 
-if __name__ == "__main__":
-    print(f"🟢 Logging random posture data into: {LOG_FILE.name} (Ctrl+C to stop)")
+# if __name__ == "__main__":
+#     print(f"🟢 Logging random posture data into: {LOG_FILE.name} (Ctrl+C to stop)")
 
-    try:
-        while True:
-            # Generate random posture data
-            posture = random.choice([0, 1])
-            confidence = round(random.uniform(0.75, 1.0), 3)
-            result = log(posture, confidence)
+#     try:
+#         while True:
+#             # Generate random posture data
+#             posture = random.choice([0, 1])
+#             confidence = round(random.uniform(0.75, 1.0), 3)
+#             result = log(posture, confidence)
 
-            print(
-                f"[{result['timestamp']}] {result['status']} | "
-                f"conf={confidence:.3f} | acc={result['summary']['accuracy']}"
-            )
+#             print(
+#                 f"[{result['timestamp']}] {result['status']} | "
+#                 f"conf={confidence:.3f} | acc={result['summary']['accuracy']}"
+#             )
 
-            time.sleep(3)
+#             time.sleep(3)
 
-    except KeyboardInterrupt:
-        print("\n Logging stopped.")
+#     except KeyboardInterrupt:
+#         print("\n Logging stopped.")
+# Run
+if __name__ == '__main__':
+    app.run(port=3500, debug=True)
