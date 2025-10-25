@@ -18,7 +18,6 @@ PosturePal uses your webcam to capture frame-by-frame images and stream video us
 Ensure you have the following installed:
 - [Node.js](https://nodejs.org/) (v18 or later recommendedttps://www.npmjs.com/) or [yarnpkg.com/
 - A [LiveKit Cloud](httpsoud account
-- Optional: https://ffmpeg.org/ (for advanced frame processing)
 
 ---
 
