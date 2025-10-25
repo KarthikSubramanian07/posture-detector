@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import PosturePalRecorder from '@/components/PosturePalRecorder';
+import Link from "next/link";
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -129,7 +130,6 @@ export default function Home() {
                     <span className="tracking-wide">Start Posture Monitoring</span>
                   </span>
                 </button>
-
                 <div className="flex items-center justify-center mt-6 space-x-2">
                   <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -261,6 +261,16 @@ export default function Home() {
               Designed with care for your wellbeing
             </p>
           </div>
+
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/dashboard"
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-transform hover:-translate-y-0.5"
+            >
+              Go to Dashboard →
+            </Link>
+          </div>
+
         </div>
       </footer>
     </main>
