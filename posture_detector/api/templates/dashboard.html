@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="5">
+  <title>Posture Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; background: #fafafa; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #f0f0f0; }
+    tr.good { background-color: #e6ffe6; }
+    tr.slouching { background-color: #ffe6e6; }
+  </style>
+</head>
+<body>
+  <h1>🧍 Posture Monitoring Dashboard</h1>
+  <p style="text-align:center;">Auto-refreshes every 5 seconds</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>User</th>
+        <th>Status</th>
+        <th>Angle (°)</th>
+        <th>Confidence</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr class="{{ e.status }}">
+        <td>{{ e.timestamp }}</td>
+        <td>{{ e.user }}</td>
+        <td>{{ e.status }}</td>
+        <td>{{ "%.2f"|format(e.angle) }}</td>
+        <td>{{ "%.2f"|format(e.confidence) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
