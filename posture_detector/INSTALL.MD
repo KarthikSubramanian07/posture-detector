@@ -18,14 +18,13 @@ PosturePal uses your webcam to capture frame-by-frame images and stream video us
 Ensure you have the following installed:
 - [Node.js](https://nodejs.org/) (v18 or later recommendedttps://www.npmjs.com/) or [yarnpkg.com/
 - A [LiveKit Cloud](httpsoud account
-- Optional: https://ffmpeg.org/ (for advanced frame processing)
 
 ---
 
 ## 📥 Clone Repository
 ```bash
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/KarthikSubramanian07/posture-detector.git
+cd poster-detector
 
 ## 📦 Install Dependencies
 npm install
@@ -33,7 +32,7 @@ npm install
 yarn install
 
 ## 🔐 Configure Environment Variables
-Create a file named .env.local in the project root:
+Update the file .env.local in the project root:
 
 LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your_api_key_here
