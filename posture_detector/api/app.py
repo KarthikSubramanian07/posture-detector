@@ -127,6 +127,47 @@ def api_log():
     return jsonify(result)
 
 
+@app.route("/api/log_posture", methods=["GET"])
+def api_log_posture():
+    """Accept metrics data from frontend via query parameter."""
+    try:
+        json_str = request.args.get("json")
+        if not json_str:
+            return jsonify({"error": "Missing json parameter"}), 400
+
+        metrics = json.loads(json_str)
+
+        # Determine posture status based on torsion_angle
+        torsion_angle = metrics.get("torsion_angle", 0)
+
+        # Good posture: torsion angle < 15 degrees
+        # Bad posture: torsion angle >= 15 degrees
+        if torsion_angle < 15:
+            status = "correct"
+            confidence = 1.0 - (torsion_angle / 15.0)  # Higher confidence when angle is lower
+        else:
+            status = "incorrect"
+            confidence = min(1.0, (torsion_angle - 15) / 30.0)  # Higher confidence when angle is worse
+
+        confidence = max(0.5, min(0.99, confidence))  # Clamp between 0.5 and 0.99
+
+        result = log_posture(status, confidence)
+        socketio.emit("update", get_dashboard_data())
+        print(f"[API] Logged posture: {status} (torsion={torsion_angle:.1f}°, confidence={confidence:.3f})")
+
+        return jsonify({
+            "success": True,
+            "metrics": metrics,
+            "posture": status,
+            "confidence": confidence,
+            "result": result
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Failed to log posture: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # -------------------
 # Log Watcher Thread
 # -------------------
