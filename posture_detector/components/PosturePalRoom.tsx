@@ -98,10 +98,11 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       }
 
       const result = await response.json();
-      const metrics = await fetch('http://127.0.0.1:5000/api/get_metrics?id=' + frameNumber);
+      const metrics = await fetch('http://localhost:5500/api/get_metrics?id=' + frameNumber);
       const text = await metrics.json();
-      console.log(text.torsion_angle);
-      const log = await fetch('http://127.0.0.1:3500/api/log_posture?json=' + JSON.stringify(text));
+      console.log(text);
+      const log = await ('http://localhost:3500/api/app.py?json=' + JSON.stringify(text),{
+      method: 'POST',});
       console.log(`✅ Frame ${frameNumber} uploaded:`, result.filename);
       setUploadedCount(prev => prev + 1);
       

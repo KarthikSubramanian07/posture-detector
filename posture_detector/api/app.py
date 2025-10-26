@@ -3,6 +3,7 @@ eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
+from flask_cors import CORS
 import os, re, time, threading, json, logging
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ app = Flask(
     template_folder=str(BASE_DIR / "templates"),
     static_folder=str(BASE_DIR / "static")
 )
+CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 # -------------------
@@ -115,8 +117,8 @@ def dashboard():
 def api_log():
     """Accept JSON like {"status": "correct", "confidence": 0.91}"""
     data = request.get_json(force=True)
-    status = data.get("status")
-    confidence = float(data.get("confidence", 0))
+    status = "correct"
+    confidence = float(data.get("chest_angle", 0))
 
     if status not in ["correct", "incorrect"]:
         return jsonify({"error": "status must be 'correct' or 'incorrect'"}), 400
@@ -157,4 +159,4 @@ threading.Thread(target=watch_logs, daemon=True).start()
 # -------------------
 if __name__ == "__main__":
     print("✅ Server starting with Eventlet on http://localhost:3500")
-    socketio.run(app, host="0.0.0.0", port=3500, debug=False, use_reloader=False)
+    socketio.run(app, host="0.0.0.0", port=3500, debug=True, use_reloader=False)

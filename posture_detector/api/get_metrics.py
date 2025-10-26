@@ -5,7 +5,7 @@ from get_depth import get_depth, get_feature
 from flask_cors import CORS
 # Paths to images
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 @app.route('/api/get_metrics', methods=['GET'])
 def compute_torsion_id():
     id = request.args.get('id')
@@ -90,4 +90,4 @@ def handle_options(response):
     return response
 # Run
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(host="0.0.0.0",port=5500, debug=True)
