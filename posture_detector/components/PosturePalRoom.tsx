@@ -19,10 +19,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastNotificationTimeRef = useRef<number>(0);
-  const lastVoiceAlertTimeRef = useRef<number>(0);
-  const isPlayingAudioRef = useRef<boolean>(false);
-
+  
   const [isConnected, setIsConnected] = useState(false);
   const [frameCount, setFrameCount] = useState(0);
   const [uploadedCount, setUploadedCount] = useState(0);
@@ -38,8 +35,6 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const [lastMetrics, setLastMetrics] = useState<any>(null);
 
   const CAPTURE_INTERVAL_MS = AppConfig.recording.captureIntervalSeconds * 1000;
-  const NOTIFICATION_COOLDOWN_MS = AppConfig.alerts.desktopNotification.cooldownSeconds * 1000;
-  const VOICE_ALERT_COOLDOWN_MS = AppConfig.alerts.voiceAlert.cooldownSeconds * 1000;
   const tracks = useTracks([Track.Source.Camera]);
 
   useEffect(() => {
@@ -94,24 +89,8 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   };
 
   const speakText = async (text: string) => {
-    const now = Date.now();
-    const timeSinceLastAlert = now - lastVoiceAlertTimeRef.current;
-
-    // Check if audio is already playing or within cooldown period
-    if (isPlayingAudioRef.current) {
-      console.log('⏭️ Skipping voice alert - audio already playing');
-      return;
-    }
-
-    if (timeSinceLastAlert < VOICE_ALERT_COOLDOWN_MS) {
-      const remainingTime = Math.ceil((VOICE_ALERT_COOLDOWN_MS - timeSinceLastAlert) / 1000);
-      console.log(`⏳ Skipping voice alert - cooldown active (${remainingTime}s remaining)`);
-      return;
-    }
-
     try {
       console.log('🎤 Requesting voice alert for:', text.substring(0, 50) + '...');
-      isPlayingAudioRef.current = true;
 
       const response = await fetch('/api/speak', {
         method: 'POST',
@@ -129,36 +108,22 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
 
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
-        isPlayingAudioRef.current = false;
-        lastVoiceAlertTimeRef.current = Date.now();
         console.log('✅ Voice alert completed');
       };
 
       audio.onerror = (error) => {
         console.error('❌ Audio playback error:', error);
         URL.revokeObjectURL(audioUrl);
-        isPlayingAudioRef.current = false;
       };
 
       await audio.play();
       console.log('🔊 Playing voice alert');
     } catch (error) {
       console.error('❌ Failed to speak text:', error);
-      isPlayingAudioRef.current = false;
     }
   };
 
   const showDesktopNotification = (message: string) => {
-    const now = Date.now();
-    const timeSinceLastNotification = now - lastNotificationTimeRef.current;
-
-    // Check if within cooldown period
-    if (timeSinceLastNotification < NOTIFICATION_COOLDOWN_MS) {
-      const remainingTime = Math.ceil((NOTIFICATION_COOLDOWN_MS - timeSinceLastNotification) / 1000);
-      console.log(`⏳ Skipping desktop notification - cooldown active (${remainingTime}s remaining)`);
-      return;
-    }
-
     console.log('🔔 Attempting to show notification:', message);
     console.log('🔔 Notification support:', 'Notification' in window);
     console.log('🔔 Notification permission:', Notification?.permission);
@@ -201,7 +166,6 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
 
       // Auto-close after 10 seconds
       setTimeout(() => notification.close(), 10000);
-      lastNotificationTimeRef.current = now;
       console.log('✅ Notification created successfully');
     }
   };
@@ -482,6 +446,22 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                         {lastMetrics?.posture != 1 ? 'Posture Alert' : 'Posture Status'}
                       </p>
                       <p className="text-sm leading-relaxed opacity-95">{aiFeedback}</p>
+                      {lastMetrics && (
+                        <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <p className="opacity-70">Eye Strain</p>
+                            <p className="font-mono font-bold">{lastMetrics.eye_strain?.toFixed(1)}</p>
+                          </div>
+                          <div>
+                            <p className="opacity-70">Face Angle</p>
+                            <p className="font-mono font-bold">{lastMetrics.face_pitch?.toFixed(1)}°</p>
+                          </div>
+                          <div>
+                            <p className="opacity-70">Neck Strain</p>
+                            <p className="font-mono font-bold">{lastMetrics.neck_strain?.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
