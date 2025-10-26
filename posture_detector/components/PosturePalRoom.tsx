@@ -44,6 +44,13 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     }
   }, [room.state]);
 
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   useEffect(() => {
     if (!recordingStartTime || isPaused) return;
 
@@ -81,7 +88,89 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     return frameData;
   };
 
-  const getAIFeedback = async (metrics: any) => {
+  const speakText = async (text: string) => {
+    try {
+      console.log('🎤 Requesting voice alert for:', text.substring(0, 50) + '...');
+
+      const response = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Speech API failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        console.log('✅ Voice alert completed');
+      };
+
+      audio.onerror = (error) => {
+        console.error('❌ Audio playback error:', error);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      await audio.play();
+      console.log('🔊 Playing voice alert');
+    } catch (error) {
+      console.error('❌ Failed to speak text:', error);
+    }
+  };
+
+  const showDesktopNotification = (message: string) => {
+    console.log('🔔 Attempting to show notification:', message);
+    console.log('🔔 Notification support:', 'Notification' in window);
+    console.log('🔔 Notification permission:', Notification?.permission);
+
+    if (!('Notification' in window)) {
+      console.error('❌ Browser does not support notifications');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      console.error('❌ Notification permission denied');
+      return;
+    }
+
+    if (Notification.permission === 'default') {
+      console.warn('⚠️ Notification permission not yet requested, requesting now...');
+      Notification.requestPermission().then(permission => {
+        console.log('🔔 Permission result:', permission);
+        if (permission === 'granted') {
+          showDesktopNotification(message);
+        }
+      });
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      console.log('✅ Showing notification now');
+      const notification = new Notification('Desk Potato - Posture Alert', {
+        body: message,
+        icon: '/deskpotato_logo.png',
+        tag: 'posture-alert',
+        requireInteraction: false,
+        silent: false,
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+
+      // Auto-close after 10 seconds
+      setTimeout(() => notification.close(), 10000);
+      console.log('✅ Notification created successfully');
+    }
+  };
+
+  const getAIFeedback = async (metrics: any): Promise<string> => {
     try {
       console.log('🤖 Requesting AI feedback for metrics:', metrics);
       setFeedbackLoading(true);
@@ -104,12 +193,16 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       if (data.feedback) {
         setAiFeedback(data.feedback);
         console.log('💬 Set AI feedback to:', data.feedback);
+        return data.feedback;
       }
+      return 'Please adjust your posture';
     } catch (error) {
       console.error('❌ Failed to get AI feedback:', error);
       // Fallback to generic message
-      setAiFeedback('Please adjust your posture');
+      const fallbackMessage = 'Please adjust your posture';
+      setAiFeedback(fallbackMessage);
       console.log('⚠️ Using fallback feedback');
+      return fallbackMessage;
     } finally {
       setFeedbackLoading(false);
     }
@@ -150,13 +243,40 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
         console.warn('⚠️ Posture logging failed (non-critical):', logError);
       }
 
-      // Get AI feedback if posture is incorrect;
-      if (metricsData.posture != 1) {
+      // Only get AI feedback for bad posture (posture === 0)
+      // Don't show positive feedback - only alert when there's a problem
+      if (metricsData.posture === 0) {
         console.log('⚠️ Bad posture detected! Requesting AI feedback...');
-        getAIFeedback(metricsData);
+        const feedback = await getAIFeedback(metricsData);
+
+        // Show desktop notification with AI feedback
+        showDesktopNotification(feedback || 'Please adjust your posture');
+
+        // Speak the AI feedback as voice alert
+        speakText(feedback || 'Please adjust your posture');
+
+        // Dispatch custom event for notification system
+        const event = new CustomEvent('posture-update', {
+          detail: {
+            posture: metricsData.posture,
+            metrics: metricsData,
+            feedback: feedback || 'Please adjust your posture'
+          }
+        });
+        window.dispatchEvent(event);
       } else {
-        console.log('✅ Good posture! Setting positive feedback');
-        setAiFeedback('Great posture! Keep it up!');
+        // Good posture - clear feedback, no positive messages
+        setAiFeedback('');
+
+        // Notify notification system that posture is good (resets bad posture timer)
+        const event = new CustomEvent('posture-update', {
+          detail: {
+            posture: metricsData.posture,
+            metrics: metricsData,
+            feedback: null
+          }
+        });
+        window.dispatchEvent(event);
       }
 
       console.log(`✅ Frame ${frameNumber} uploaded:`, result.filename);
