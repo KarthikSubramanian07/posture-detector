@@ -18,7 +18,7 @@ app = Flask(
     template_folder=str(BASE_DIR / "templates"),
     static_folder=str(BASE_DIR / "static")
 )
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

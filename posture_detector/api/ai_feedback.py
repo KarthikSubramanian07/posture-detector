@@ -77,51 +77,62 @@ Adjust your tone based on confidence: high confidence = direct and urgent, low c
         # Send message to Letta agent using Letta 0.13.0 API
         agent_id = os.environ.get("LETTA_AGENT_ID")
 
-        # Try different API methods based on letta-client version
-        try:
-            # Method 1: Using messages endpoint (most common)
-            response = letta_client.messages.create(
-                agent_id=agent_id,
-                messages=[{"role": "user", "text": prompt}]
-            )
-        except AttributeError:
-            try:
-                # Method 2: Direct user_message method
-                response = letta_client.user_message(
-                    agent_id=agent_id,
-                    message=prompt
-                )
-            except AttributeError:
-                # Method 3: Using agent_id as a parameter
-                response = letta_client.send(
-                    agent_id=agent_id,
-                    message=prompt
-                )
+        # For letta-client, use the HTTP API directly
+        import requests
+
+        # Get the base URL and token
+        base_url = "https://api.letta.com"  # or your custom Letta server URL
+        api_key = os.environ.get("LETTA_API_KEY")
+
+        # Make direct API call to send message
+        # Disable SSL verification for corporate proxy environments
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        http_response = requests.post(
+            f"{base_url}/v1/agents/{agent_id}/messages",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "messages": [{"role": "user", "text": prompt}]
+            },
+            verify=False  # Disable SSL verification for corporate proxies
+        )
+
+        if http_response.status_code != 200:
+            raise Exception(f"Letta API error: {http_response.status_code} - {http_response.text}")
+
+        response_data = http_response.json()
 
         # Extract text from response
-        # Letta returns a LettaResponse object or list of messages
+        # Letta API returns JSON with messages array
         feedback = None
 
-        if hasattr(response, 'messages') and response.messages:
+        if isinstance(response_data, dict) and 'messages' in response_data:
             # Get the last assistant message from the messages list
-            for msg in reversed(response.messages):
-                if hasattr(msg, 'role') and msg.role == 'assistant' and hasattr(msg, 'text'):
-                    feedback = msg.text
-                    break
-            if not feedback:
-                feedback = str(response.messages[-1])
-        elif isinstance(response, list) and len(response) > 0:
+            messages = response_data['messages']
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get('role') == 'assistant':
+                    feedback = msg.get('text') or msg.get('content')
+                    if feedback:
+                        break
+            if not feedback and messages:
+                feedback = str(messages[-1])
+        elif isinstance(response_data, list) and len(response_data) > 0:
             # If response is directly a list of messages
-            for msg in reversed(response):
-                if hasattr(msg, 'role') and msg.role == 'assistant' and hasattr(msg, 'text'):
-                    feedback = msg.text
-                    break
+            for msg in reversed(response_data):
+                if isinstance(msg, dict) and msg.get('role') == 'assistant':
+                    feedback = msg.get('text') or msg.get('content')
+                    if feedback:
+                        break
             if not feedback:
-                feedback = str(response[-1])
-        elif hasattr(response, 'text'):
-            feedback = response.text
+                feedback = str(response_data[-1])
+        elif isinstance(response_data, dict) and ('text' in response_data or 'content' in response_data):
+            feedback = response_data.get('text') or response_data.get('content')
         else:
-            feedback = str(response)
+            feedback = str(response_data)
 
         if not feedback:
             feedback = "Please adjust your posture for better ergonomics."
