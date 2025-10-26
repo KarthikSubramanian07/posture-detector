@@ -26,7 +26,7 @@ def compute_torsion_id():
     metric_dict["neck_area"] = compute_area(neck_mask)
     metric_dict["eye_strain"] = get_eye_strain(metric_dict["face_dist"])
     metric_dict["neck_strain"] = get_neck_strain(metric_dict["neck_pitch"], metric_dict["neck_yaw"], metric_dict["neck_area"])
-    metric_dict
+    metric_dict["posture"] = int(is_correct(metric_dict))
     return jsonify(metric_dict)
 
 def compute_rolls(depth_img, depth_mask):
@@ -68,10 +68,10 @@ def get_neck_strain(neck_pitch, neck_yaw, neck_area):
 def get_eye_strain(face_depth):
     ans = 1/(1+face_depth*10)
     return ans
-def is_correct(eye_strain, neck_strain, metric_dict):
-    if (eye_strain > 5):
+def is_correct(metric_dict):
+    if (metric_dict["eye_strain"] > 5):
         return False
-    if (neck_strain > 5):
+    if (metric_dict["neck_strain"] > 5):
         return False
     if (metric_dict["chest_roll"] > 10 or metric_dict["chest_yaw"] > 10):
         return False
