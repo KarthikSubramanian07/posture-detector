@@ -27,7 +27,7 @@ def compute_torsion_id():
     metric_dict["depth_diff"] = metric_dict["chest_dist"] - metric_dict["face_dist"]
     metric_dict["neck_area"] = compute_area(neck_mask)
     metric_dict["eye_strain"] = get_eye_strain(metric_dict["face_dist"])
-    metric_dict["neck_strain"] = get_neck_strain(metric_dict["neck_pitch"], metric_dict["neck_roll"], metric_dict["neck_area"])
+    metric_dict["neck_strain"] = get_neck_strain(metric_dict["face_pitch"], metric_dict["neck_area"])
     metric_dict["posture"] = int(is_correct(metric_dict))
     return jsonify(metric_dict)
 
@@ -62,12 +62,12 @@ def compute_avg_dist(depth_img, depth_mask):
 def compute_area(depth_mask):
     return len(np.nonzero(depth_mask[:,:,0])[0])
 
-def get_neck_strain(neck_pitch, neck_roll, neck_area):
-    ans = neck_pitch + neck_roll - neck_area/2000
+def get_neck_strain(face_pitch, neck_area):
+    ans = max(0, 2*face_pitch - neck_area/2000)
     return ans
 
 def get_eye_strain(face_depth):
-    ans = 10/(face_depth/5)
+    ans = 40/(face_depth/5)
     return ans
 def is_correct(metric_dict):
     if (metric_dict["eye_strain"] > 5):
