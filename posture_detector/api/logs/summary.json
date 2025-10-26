@@ -1,5 +1,11 @@
 {
-  "correct": 417,
+<<<<<<< HEAD
+  "correct": 959,
+  "incorrect": 628,
+  "accuracy": 0.604
+=======
+  "correct": 420,
   "incorrect": 526,
-  "accuracy": 0.442
+  "accuracy": 0.444
+>>>>>>> ca1b4f4204541c4d617275f91990a82a2937c848
 }

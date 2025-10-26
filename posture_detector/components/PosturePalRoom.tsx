@@ -30,6 +30,9 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const [isPaused, setIsPaused] = useState(false);
   const [pausedTime, setPausedTime] = useState(0);
   const [sessionId] = useState(`posturepal-${Date.now()}`);
+  const [aiFeedback, setAiFeedback] = useState<string>('');
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [lastMetrics, setLastMetrics] = useState<any>(null);
 
   const CAPTURE_INTERVAL_MS = AppConfig.recording.captureIntervalSeconds * 1000;
   const tracks = useTracks([Track.Source.Camera]);
@@ -78,6 +81,40 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     return frameData;
   };
 
+  const getAIFeedback = async (metrics: any) => {
+    try {
+      console.log('🤖 Requesting AI feedback for metrics:', metrics);
+      setFeedbackLoading(true);
+      const response = await fetch('http://localhost:5001/api/ai_feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metrics),
+      });
+
+      console.log('📡 AI feedback response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`AI feedback request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ AI feedback received:', data);
+      if (data.feedback) {
+        setAiFeedback(data.feedback);
+        console.log('💬 Set AI feedback to:', data.feedback);
+      }
+    } catch (error) {
+      console.error('❌ Failed to get AI feedback:', error);
+      // Fallback to generic message
+      setAiFeedback('Please adjust your posture');
+      console.log('⚠️ Using fallback feedback');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
   const uploadFrame = async (frameData: string, frameNumber: number) => {
     try {
       const response = await fetch('/api/upload-frame', {
@@ -98,11 +135,40 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       }
 
       const result = await response.json();
+<<<<<<< HEAD
+      const metrics = await fetch('http://127.0.0.1:5000/api/get_metrics?id=' + frameNumber);
+      const metricsData = await metrics.json();
+      console.log('📊 Metrics received:', metricsData);
+      console.log('📐 Torsion angle:', metricsData.torsion_angle);
+
+      // Store metrics for display
+      setLastMetrics(metricsData);
+      console.log('💾 Stored metrics in state');
+
+      // Log posture (don't let CORS errors crash the whole function)
+      try {
+        await fetch('http://127.0.0.1:3500/api/log_posture?json=' + JSON.stringify(metricsData));
+      } catch (logError) {
+        console.warn('⚠️ Posture logging failed (non-critical):', logError);
+      }
+
+      // Get AI feedback if posture is incorrect (torsion_angle > 15)
+      console.log('🔍 Checking torsion angle:', metricsData.torsion_angle, '> 15?', metricsData.torsion_angle > 15);
+      if (metricsData.torsion_angle > 15) {
+        console.log('⚠️ Bad posture detected! Requesting AI feedback...');
+        getAIFeedback(metricsData);
+      } else {
+        console.log('✅ Good posture! Setting positive feedback');
+        setAiFeedback('Great posture! Keep it up!');
+      }
+
+=======
       const metrics = await fetch('http://localhost:5500/api/get_metrics?id=' + frameNumber);
       const text = await metrics.json();
       console.log(text);
       const log = await ('http://localhost:3500/api/app.py?json=' + JSON.stringify(text),{
       method: 'POST',});
+>>>>>>> ca1b4f4204541c4d617275f91990a82a2937c848
       console.log(`✅ Frame ${frameNumber} uploaded:`, result.filename);
       setUploadedCount(prev => prev + 1);
       
@@ -241,11 +307,54 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                 </div>
               )}
 
-              {/* PosturePal Overlay Placeholder */}
-              <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm">
-                <p className="font-semibold">Posture Analysis: Coming Soon</p>
-                <p className="text-xs text-gray-300">Frame-by-frame capture active</p>
-              </div>
+              {/* AI Feedback Display */}
+              {aiFeedback && (
+                <div className={`absolute bottom-4 left-4 right-4 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border-2 transition-all duration-300 ${
+                  lastMetrics?.torsion_angle > 15
+                    ? 'bg-gradient-to-r from-red-600/90 to-orange-600/90 border-red-400/50'
+                    : 'bg-gradient-to-r from-green-600/90 to-emerald-600/90 border-green-400/50'
+                }`}>
+                  <div className="flex items-start space-x-3">
+                    {feedbackLoading ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mt-1"></div>
+                    ) : (
+                      <div className="flex-shrink-0 mt-1">
+                        {lastMetrics?.torsion_angle > 15 ? (
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-bold text-base mb-1">
+                        {lastMetrics?.torsion_angle > 15 ? 'Posture Alert' : 'Posture Status'}
+                      </p>
+                      <p className="text-sm leading-relaxed opacity-95">{aiFeedback}</p>
+                      {lastMetrics && (
+                        <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <p className="opacity-70">Torsion</p>
+                            <p className="font-mono font-bold">{lastMetrics.torsion_angle?.toFixed(1)}°</p>
+                          </div>
+                          <div>
+                            <p className="opacity-70">Face Angle</p>
+                            <p className="font-mono font-bold">{lastMetrics.face_angle?.toFixed(1)}°</p>
+                          </div>
+                          <div>
+                            <p className="opacity-70">Depth Diff</p>
+                            <p className="font-mono font-bold">{lastMetrics.depth_diff?.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -1,14 +1,41 @@
+import os
+import sys
 
-from PIL import Image
+# Set environment variables BEFORE any imports
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+# Import torch FIRST before transformers
 import torch
 from torch import nn
 import numpy as np
+from PIL import Image
+
+# CRITICAL FIX for PyTorch 2.9.0+: Patch torch.load BEFORE importing transformers
+# This prevents the "Cannot copy out of meta tensor" error
+_original_torch_load = torch.load
+
+def _patched_torch_load(*args, **kwargs):
+    # Force weights_only=False to prevent meta tensor issues
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return _original_torch_load(*args, **kwargs)
+
+torch.load = _patched_torch_load
+
+print("✓ PyTorch patches applied")
+print(f"✓ PyTorch version: {torch.__version__}")
+
+# NOW import transformers AFTER all patches are applied
 from transformers import pipeline, SegformerImageProcessor, SegformerForSemanticSegmentation
-import os
 
 print(torch.__version__)
-print(torch.torch.backends.mps.is_available())
+print(torch.backends.mps.is_available())
 print(torch.backends.mps.is_built())
+
+# Global model cache to prevent reloading and meta tensor issues
+_face_parsing_model = None
+_face_parsing_processor = None
 
 def get_depth(id):
     if (torch.cuda.is_available()):
@@ -25,16 +52,32 @@ def get_depth(id):
     return "completed"
 
 def get_feature(id, feature):
-    if (torch.cuda.is_available()):
-        device = torch.device("cuda")
-    elif (torch.backends.mps.is_available()):
-        device = torch.device("mps")
+    global _face_parsing_model, _face_parsing_processor
+
+    device = torch.device("cpu")  # Force CPU to avoid device issues
+
+    # Use cached model if available to avoid reloading issues
+    if _face_parsing_model is None or _face_parsing_processor is None:
+        print("Loading face parsing model for the first time...")
+
+        _face_parsing_processor = SegformerImageProcessor.from_pretrained("jonathandinu/face-parsing")
+
+        # Load model with transformers 4.45 - should work cleanly
+        print("Loading face parsing model...")
+        _face_parsing_model = SegformerForSemanticSegmentation.from_pretrained(
+            "jonathandinu/face-parsing",
+            torch_dtype=torch.float32
+        )
+
+        # Move to device and set to eval mode
+        _face_parsing_model = _face_parsing_model.to(device)
+        _face_parsing_model.eval()
+        print(f"✓ Model loaded successfully on {device}")
     else:
-        device = torch.device("cpu")
-    
-    image_processor = SegformerImageProcessor.from_pretrained("jonathandinu/face-parsing")
-    model = SegformerForSemanticSegmentation.from_pretrained("jonathandinu/face-parsing")
-    model.to(device)
+        print("Using cached face parsing model")
+
+    model = _face_parsing_model
+    image_processor = _face_parsing_processor
 
     # expects a PIL.Image or torch.Tensor
     image = Image.open(get_most_recent_file(f'{get_most_recent_dir("../storage/sessions/")}/frames'))
@@ -53,10 +96,17 @@ def get_feature(id, feature):
     # get label masks
     labels = upsampled_logits.argmax(dim=1)[0]
 
+    # Debug: Check what labels we're getting
+    unique_labels = torch.unique(labels)
+    print(f"Feature {feature}: Unique labels found in image: {unique_labels.tolist()}")
+
     # move to CPU to visualize in matplotlib
     print(feature)
     labels_viz = (labels.cpu().numpy() == int(feature)).astype(np.uint8)*255
-    print(labels_viz)
+
+    # Debug: Check if we found the feature
+    feature_pixels = np.sum(labels_viz > 0)
+    print(f"Feature {feature}: Found {feature_pixels} pixels")
     img = Image.fromarray(labels_viz, 'L')
     img.save(f"../face/{id}_{feature}_feature.png", "PNG")
     return "finished"
