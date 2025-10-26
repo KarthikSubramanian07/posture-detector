@@ -115,6 +115,7 @@ def dashboard():
 
 @app.route("/api/app.py", methods=["POST"])
 def api_log():
+    print(f"[API] Logged {status} ({confidence:.3f})")  
     """Accept JSON like {"status": "correct", "confidence": 0.91}"""
     data = request.get_json(force=True)
     status = "correct"
