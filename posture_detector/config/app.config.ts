@@ -38,6 +38,18 @@ export const AppConfig = {
     },
   },
 
+  // Alert Settings
+  alerts: {
+    desktopNotification: {
+      enabled: true,
+      cooldownSeconds: 60, // Cooldown between desktop notifications (in seconds)
+    },
+    voiceAlert: {
+      enabled: true,
+      cooldownSeconds: 60, // Cooldown between voice alerts (in seconds)
+    },
+  },
+
   // Camera Settings
   camera: {
     preferredResolution: {
