@@ -482,22 +482,6 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                         {lastMetrics?.posture != 1 ? 'Posture Alert' : 'Posture Status'}
                       </p>
                       <p className="text-sm leading-relaxed opacity-95">{aiFeedback}</p>
-                      {lastMetrics && (
-                        <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-3 gap-3 text-xs">
-                          <div>
-                            <p className="opacity-70">Eye Strain</p>
-                            <p className="font-mono font-bold">{lastMetrics.eye_strain?.toFixed(1)}</p>
-                          </div>
-                          <div>
-                            <p className="opacity-70">Face Angle</p>
-                            <p className="font-mono font-bold">{lastMetrics.face_pitch?.toFixed(1)}°</p>
-                          </div>
-                          <div>
-                            <p className="opacity-70">Neck Strain</p>
-                            <p className="font-mono font-bold">{lastMetrics.neck_strain?.toFixed(2)}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
