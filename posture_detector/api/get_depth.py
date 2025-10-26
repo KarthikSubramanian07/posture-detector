@@ -17,9 +17,10 @@ def get_depth(id):
         device = "mps"
     else:
         device = "cpu"
-    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf", device = device)
+    pipe = pipeline(task="depth-estimation", model="depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf", use_fast=True, device = device)
     image = Image.open(get_most_recent_file(f'{get_most_recent_dir("../storage/sessions/")}/frames'))
     depth = pipe(image)["depth"]
+    image.convert("L")
     depth.save(f"../face/{id}_depth.png")
     return "completed"
 
@@ -39,7 +40,7 @@ def get_feature(id, feature):
     image = Image.open(get_most_recent_file(f'{get_most_recent_dir("../storage/sessions/")}/frames'))
 
     # run inference on image
-    inputs = image_processor(images=image, return_tensors="pt").to(device)
+    inputs = image_processor(images=image, return_tensors="pt", use_fast=True).to(device)
     outputs = model(**inputs)
     logits = outputs.logits 
 

@@ -3,6 +3,7 @@ import numpy as np
 from flask import Flask, request, jsonify
 from get_depth import get_depth, get_feature
 from flask_cors import CORS
+import math
 # Paths to images
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -11,76 +12,70 @@ def compute_torsion_id():
     id = request.args.get('id')
     get_depth(id)
     get_feature(id, 1)
+    get_feature(id, 2)
     get_feature(id, 18)
-    depth_path = f"../face/{id}_depth.png"
-    face_path = f"../face/{id}_{1}_feature.png"
-    chest_path = f"../face/{id}_{18}_feature.png"
-    return jsonify(compute_torsion_principal_axis(depth_path, face_path, chest_path))
+    depth_img = cv2.imread(f"../face/{id}_depth.png")
+    face_mask = cv2.imread(f"../face/{id}_{1}_feature.png")
+    neck_mask = cv2.imread(f"../face/{id}_{2}_feature.png")
+    chest_mask = cv2.imread(f"../face/{id}_{18}_feature.png")
+    metric_dict = {}
+    metric_dict["chest_roll"], metric_dict["chest_pitch"] = compute_rolls(depth_img, chest_mask)
+    metric_dict["neck_roll"], metric_dict["neck_pitch"] = compute_rolls(depth_img, neck_mask)
+    metric_dict["face_roll"], metric_dict["face_pitch"] = compute_rolls(depth_img, face_mask)
+    metric_dict["face_dist"] = compute_avg_dist(depth_img, face_mask)
+    metric_dict["neck_area"] = compute_area(neck_mask)
+    metric_dict["eye_strain"] = get_eye_strain(metric_dict["face_dist"])
+    metric_dict["neck_strain"] = get_neck_strain(metric_dict["neck_pitch"], metric_dict["neck_yaw"], metric_dict["neck_area"])
+    metric_dict
+    return jsonify(metric_dict)
 
-def compute_torsion_principal_axis(depth_img_path, face_mask_path, chest_mask_path):
-    depth = cv2.imread(depth_img_path, cv2.IMREAD_GRAYSCALE).astype(np.float32)
-    face_mask = cv2.imread(face_mask_path, cv2.IMREAD_GRAYSCALE)
-    chest_mask = cv2.imread(chest_mask_path, cv2.IMREAD_GRAYSCALE)
+def compute_rolls(depth_img, depth_mask):
+    print(depth_mask.shape)
+    y, x = np.nonzero(depth_mask[:,:,0])
+    z = depth_img.mean(axis = -1)[y,x]
+    x = x.astype(np.float64)
+    y = y.astype(np.float64)
+    z = z.astype(np.float64)
+    x = x - x.mean()
+    y = y - y.mean()
+    z = (z - z.mean())/z.std()
+    pts = np.stack((x, y, z), axis = 1)
+    print(pts.shape)
+    centered = pts - pts.mean(axis = 0)
+    cov = np.cov(centered, rowvar=False)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    normal = eigvecs[:, np.argmin(eigvals)]
+    normal /= np.linalg.norm(normal)
 
-    # Resize masks to match depth image
-    face_mask = cv2.resize(face_mask, (depth.shape[1], depth.shape[0]), interpolation=cv2.INTER_NEAREST)
-    chest_mask = cv2.resize(chest_mask, (depth.shape[1], depth.shape[0]), interpolation=cv2.INTER_NEAREST)
+    nx, ny, nz = normal
+    pitch = np.arctan2(ny, nz)*(180/math.pi)
+    roll  = np.arctan2(nx, nz)*(180/math.pi)
+    pitch = min(abs(pitch), abs(pitch+180))
+    pitch = min(abs(roll), abs(roll+180))
+    return roll, pitch
 
-    # Normalize depth
-    depth = cv2.normalize(depth, None, 0, 1, cv2.NORM_MINMAX)
+def compute_avg_dist(depth_img, depth_mask):
+    y, x = np.nonzero(depth_mask[:,:,0])
+    z = depth_img.mean(axis = -1)[y,x]
+    return z.mean()
+def compute_area(depth_mask):
+    return len(np.nonzero(depth_mask[:,:,0])[0])
 
-    # Compute average depth in masked regions
-    face_depth = np.mean(depth[face_mask > 128])
-    chest_depth = np.mean(depth[chest_mask > 128])
-    depth_diff = abs(face_depth - chest_depth)
+def get_neck_strain(neck_pitch, neck_yaw, neck_area):
+    ans = (neck_pitch) + (neck_yaw) - neck_area/1000
+    return ans
 
-    # Get coordinates of mask regions
-    face_coords = np.column_stack(np.where(face_mask > 128))
-    chest_coords = np.column_stack(np.where(chest_mask > 128))
-
-    def principal_angle(coords):
-        coords_centered = coords - np.mean(coords, axis=0)
-        cov = np.cov(coords_centered.T)
-        eigvals, eigvecs = np.linalg.eigh(cov)
-        principal_vector = eigvecs[:, np.argmax(eigvals)]
-        angle = np.degrees(np.arctan2(principal_vector[0], principal_vector[1]))
-        return angle
-
-    # Calculate principal angles for face and chest
-    face_angle = principal_angle(face_coords)
-    chest_angle = principal_angle(chest_coords)
-
-    # Normalize angles so upright posture ~ 0 torsion
-    def normalize_angle(a):
-        if a > 90:
-            a -= 180
-        elif a < -90:
-            a += 180
-        return a
-
-    face_angle = normalize_angle(face_angle)
-    chest_angle = normalize_angle(chest_angle)
-
-    # Compute torsion (body twist)
-    torsion_angle = abs(chest_angle - face_angle)
-
-    # Adjust torsion for near-vertical orientations
-    if torsion_angle > 60:
-        torsion_angle = abs(90 - torsion_angle)
-
-    # Estimate yaw of the face based on mask width/height ratio
-    face_h, face_w = np.max(face_coords[:, 0]) - np.min(face_coords[:, 0]), np.max(face_coords[:, 1]) - np.min(face_coords[:, 1])
-    face_yaw_angle = np.degrees(np.arctan2(face_w, face_h) - np.pi / 4)
-
-    return {
-        "face_depth": round(float(face_depth), 3),
-        "chest_depth": round(float(chest_depth), 3),
-        "depth_diff": round(float(depth_diff), 3),
-        "face_angle": round(float(face_angle), 3),
-        "chest_angle": round(float(chest_angle), 3),
-        "torsion_angle": round(float(torsion_angle), 3),
-        "face_yaw_angle": round(float(face_yaw_angle), 3)
-    }
+def get_eye_strain(face_depth):
+    ans = 1/(1+face_depth*10)
+    return ans
+def is_correct(eye_strain, neck_strain, metric_dict):
+    if (eye_strain > 5):
+        return False
+    if (neck_strain > 5):
+        return False
+    if (metric_dict["chest_roll"] > 10 or metric_dict["chest_yaw"] > 10):
+        return False
+    return True
 @app.after_request
 def handle_options(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
