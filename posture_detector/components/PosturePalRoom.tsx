@@ -237,6 +237,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       console.log('💾 Stored metrics in state');
 
       // Log posture (don't let CORS errors crash the whole function)
+      // Ryan - calling dummy function 4
       try {
         await fetch('http://localhost:3500/api/app.py?' + "neck-strain=" + metricsData.neck_strain + "&eye-strain=" + metricsData.eye_strain + "&posture=" + metricsData.posture);
       } catch (logError) {
