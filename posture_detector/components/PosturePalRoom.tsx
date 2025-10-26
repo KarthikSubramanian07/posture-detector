@@ -135,6 +135,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       }
 
       const result = await response.json();
+<<<<<<< HEAD
       const metrics = await fetch('http://127.0.0.1:5000/api/get_metrics?id=' + frameNumber);
       const metricsData = await metrics.json();
       console.log('📊 Metrics received:', metricsData);
@@ -161,6 +162,13 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
         setAiFeedback('Great posture! Keep it up!');
       }
 
+=======
+      const metrics = await fetch('http://localhost:5500/api/get_metrics?id=' + frameNumber);
+      const text = await metrics.json();
+      console.log(text);
+      const log = await ('http://localhost:3500/api/app.py?json=' + JSON.stringify(text),{
+      method: 'POST',});
+>>>>>>> ca1b4f4204541c4d617275f91990a82a2937c848
       console.log(`✅ Frame ${frameNumber} uploaded:`, result.filename);
       setUploadedCount(prev => prev + 1);
       
