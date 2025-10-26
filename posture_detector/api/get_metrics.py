@@ -23,9 +23,11 @@ def compute_torsion_id():
     metric_dict["neck_roll"], metric_dict["neck_pitch"] = compute_rolls(depth_img, neck_mask)
     metric_dict["face_roll"], metric_dict["face_pitch"] = compute_rolls(depth_img, face_mask)
     metric_dict["face_dist"] = compute_avg_dist(depth_img, face_mask)
+    metric_dict["chest_dist"] = compute_avg_dist(depth_img, chest_mask)
+    metric_dict["depth_diff"] = metric_dict["chest_dist"] - metric_dict["face_dist"]
     metric_dict["neck_area"] = compute_area(neck_mask)
     metric_dict["eye_strain"] = get_eye_strain(metric_dict["face_dist"])
-    metric_dict["neck_strain"] = get_neck_strain(metric_dict["neck_pitch"], metric_dict["neck_yaw"], metric_dict["neck_area"])
+    metric_dict["neck_strain"] = get_neck_strain(metric_dict["neck_pitch"], metric_dict["neck_roll"], metric_dict["neck_area"])
     metric_dict["posture"] = int(is_correct(metric_dict))
     return jsonify(metric_dict)
 
@@ -38,7 +40,6 @@ def compute_rolls(depth_img, depth_mask):
     z = z.astype(np.float64)
     x = x - x.mean()
     y = y - y.mean()
-    z = (z - z.mean())/z.std()
     pts = np.stack((x, y, z), axis = 1)
     print(pts.shape)
     centered = pts - pts.mean(axis = 0)
@@ -50,8 +51,8 @@ def compute_rolls(depth_img, depth_mask):
     nx, ny, nz = normal
     pitch = np.arctan2(ny, nz)*(180/math.pi)
     roll  = np.arctan2(nx, nz)*(180/math.pi)
-    pitch = min(abs(pitch), abs(pitch+180))
-    pitch = min(abs(roll), abs(roll+180))
+    pitch = min(abs(pitch), abs(pitch+180), abs(pitch-180))
+    roll = min(abs(roll), abs(roll+180), abs(pitch-180))
     return roll, pitch
 
 def compute_avg_dist(depth_img, depth_mask):
@@ -61,19 +62,19 @@ def compute_avg_dist(depth_img, depth_mask):
 def compute_area(depth_mask):
     return len(np.nonzero(depth_mask[:,:,0])[0])
 
-def get_neck_strain(neck_pitch, neck_yaw, neck_area):
-    ans = (neck_pitch) + (neck_yaw) - neck_area/1000
+def get_neck_strain(neck_pitch, neck_roll, neck_area):
+    ans = neck_pitch + neck_roll - neck_area/2000
     return ans
 
 def get_eye_strain(face_depth):
-    ans = 1/(1+face_depth*10)
+    ans = 10/(face_depth/5)
     return ans
 def is_correct(metric_dict):
     if (metric_dict["eye_strain"] > 5):
         return False
     if (metric_dict["neck_strain"] > 5):
         return False
-    if (metric_dict["chest_roll"] > 10 or metric_dict["chest_yaw"] > 10):
+    if (metric_dict["chest_roll"] > 10 or metric_dict["chest_pitch"] > 10):
         return False
     return True
 @app.after_request
