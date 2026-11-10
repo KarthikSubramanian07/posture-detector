@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   useRoomContext,
-  useLocalParticipant,
   useTracks
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
@@ -13,9 +12,16 @@ interface PosturePalRoomProps {
   onStopRecording: () => void;
 }
 
+interface PostureMetrics {
+  posture?: number;
+  eye_strain?: number;
+  face_pitch?: number;
+  neck_strain?: number;
+  [key: string]: unknown;
+}
+
 export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps) {
   const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,7 +41,9 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const [sessionId] = useState(`posturepal-${Date.now()}`);
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [lastMetrics, setLastMetrics] = useState<any>(null);
+  const [lastMetrics, setLastMetrics] = useState<PostureMetrics | null>(null);
+  const [alertAnnouncement, setAlertAnnouncement] = useState<string>('');
+  const [postureStatusLabel, setPostureStatusLabel] = useState<'unknown' | 'good' | 'needs-adjustment'>('unknown');
 
   const CAPTURE_INTERVAL_MS = AppConfig.recording.captureIntervalSeconds * 1000;
   const NOTIFICATION_COOLDOWN_MS = AppConfig.alerts.desktopNotification.cooldownSeconds * 1000;
@@ -206,7 +214,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     }
   };
 
-  const getAIFeedback = async (metrics: any): Promise<string> => {
+  const getAIFeedback = async (metrics: PostureMetrics): Promise<string> => {
     try {
       console.log('🤖 Requesting AI feedback for metrics:', metrics);
       setFeedbackLoading(true);
@@ -285,25 +293,32 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
       if (metricsData.posture === 0) {
         console.log('⚠️ Bad posture detected! Requesting AI feedback...');
         const feedback = await getAIFeedback(metricsData);
+        const message = feedback || 'Please adjust your posture';
+
+        setPostureStatusLabel('needs-adjustment');
+        // Non-visual alert: assertive live region + visible text (not colour/sound alone)
+        setAlertAnnouncement(`Posture alert: ${message}`);
 
         // Show desktop notification with AI feedback
-        showDesktopNotification(feedback || 'Please adjust your posture');
+        showDesktopNotification(message);
 
         // Speak the AI feedback as voice alert
-        speakText(feedback || 'Please adjust your posture');
+        speakText(message);
 
         // Dispatch custom event for notification system
         const event = new CustomEvent('posture-update', {
           detail: {
             posture: metricsData.posture,
             metrics: metricsData,
-            feedback: feedback || 'Please adjust your posture'
+            feedback: message
           }
         });
         window.dispatchEvent(event);
       } else {
         // Good posture - clear feedback, no positive messages
         setAiFeedback('');
+        setPostureStatusLabel('good');
+        setAlertAnnouncement('Posture looks good.');
 
         // Notify notification system that posture is good (resets bad posture timer)
         const event = new CustomEvent('posture-update', {
@@ -368,46 +383,61 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     }
   };
 
+  const connectionLabel = isPaused
+    ? 'Paused'
+    : isConnected
+      ? 'Connected and recording'
+      : 'Connecting';
+
+  const postureText =
+    postureStatusLabel === 'needs-adjustment'
+      ? 'Needs adjustment'
+      : postureStatusLabel === 'good'
+        ? 'Good'
+        : 'Waiting for first reading';
+
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-        {/* Status Bar */}
-        <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 text-white px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`}></div>
-                <span className="font-semibold text-lg">
-                  {isConnected ? '🎯 PosturePal Active' : '⚫ Connecting...'}
-                </span>
-              </div>
+      {/* Assertive live region for posture alerts (WCAG 4.1.3 / 1.4.1). */}
+      <div className="sr-only" role="status" aria-live="assertive" aria-atomic="true">
+        {alertAnnouncement}
+      </div>
 
-              <div className="text-sm text-purple-100">
-                Session: {sessionId.slice(-8)}
-              </div>
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-300">
+        {/* Status Bar */}
+        <div className="bg-gradient-to-r from-purple-700 via-pink-700 to-orange-600 text-white px-4 sm:px-6 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="font-semibold text-lg flex items-center gap-2">
+                <span
+                  className={`inline-block w-3 h-3 rounded-full ${isConnected ? 'bg-green-300 motion-safe:animate-pulse' : 'bg-gray-300'}`}
+                  aria-hidden="true"
+                ></span>
+                <span>{isConnected ? 'PosturePal Active' : 'Connecting...'}</span>
+              </p>
+              <p className="text-sm text-purple-50">
+                Session: <span className="font-mono">{sessionId.slice(-8)}</span>
+              </p>
             </div>
 
-            <div className="flex items-center space-x-6">
-              <div className="text-sm">
-                <span className="text-purple-100">Duration:</span>
+            <div className="flex flex-wrap items-center gap-4 text-sm" aria-label="Session metrics">
+              <p>
+                <span className="text-purple-50">Duration:</span>
                 <span className="ml-2 font-mono font-bold">{formatDuration(duration)}</span>
-              </div>
-
-              <div className="text-sm">
-                <span className="text-purple-100">Frames:</span>
+              </p>
+              <p>
+                <span className="text-purple-50">Frames:</span>
                 <span className="ml-2 font-mono font-bold">{frameCount}</span>
-              </div>
-
-              <div className="text-sm">
-                <span className="text-purple-100">Saved:</span>
-                <span className="ml-2 font-mono font-bold text-green-300">{uploadedCount}</span>
-              </div>
-
+              </p>
+              <p>
+                <span className="text-purple-50">Saved:</span>
+                <span className="ml-2 font-mono font-bold">{uploadedCount}</span>
+              </p>
               {failedCount > 0 && (
-                <div className="text-sm">
-                  <span className="text-purple-100">Failed:</span>
-                  <span className="ml-2 font-mono font-bold text-red-300">{failedCount}</span>
-                </div>
+                <p>
+                  <span className="text-purple-50">Failed:</span>
+                  <span className="ml-2 font-mono font-bold">{failedCount}</span>
+                </p>
               )}
             </div>
           </div>
@@ -421,14 +451,15 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
             playsInline
             muted
             className="w-full h-full object-contain"
+            aria-label="Live camera preview for posture monitoring"
           />
 
-          <canvas ref={canvasRef} className="hidden" />
+          <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           
           {!isConnected && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/75" role="status" aria-live="polite">
               <div className="text-center text-white">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4"></div>
+                <div className="motion-safe:animate-spin rounded-full h-16 w-16 border-b-4 border-white mx-auto mb-4" aria-hidden="true"></div>
                 <p className="text-lg">Initializing camera...</p>
               </div>
             </div>
@@ -436,42 +467,43 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
 
           {isConnected && (
             <>
-              {/* LIVE Indicator */}
-              <div className="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center space-x-2 shadow-lg">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <div className="absolute top-4 right-4 bg-red-700 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center space-x-2 shadow-lg">
+                <span className="w-2 h-2 bg-white rounded-full motion-safe:animate-pulse" aria-hidden="true"></span>
                 <span>LIVE</span>
               </div>
 
-              {/* CAPTURING/PAUSED Indicator */}
               {isCapturing && (
                 <div className={`absolute top-4 left-4 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center space-x-2 shadow-lg ${
                   isPaused
-                    ? 'bg-gradient-to-r from-orange-600 to-amber-600'
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600'
+                    ? 'bg-orange-700'
+                    : 'bg-purple-800'
                 }`}>
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  <span className="w-2 h-2 bg-white rounded-full motion-safe:animate-pulse" aria-hidden="true"></span>
                   <span>{isPaused ? 'PAUSED' : `CAPTURING (1 frame / ${AppConfig.recording.captureIntervalSeconds}s)`}</span>
                 </div>
               )}
 
-              {/* AI Feedback Display */}
+              {/* Visible text alert panel — complements colour and voice */}
               {aiFeedback && (
-                <div className={`absolute bottom-4 left-4 right-4 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border-2 transition-all duration-300 ${
-                  lastMetrics?.posture != 1
-                    ? 'bg-gradient-to-r from-red-600/90 to-orange-600/90 border-red-400/50'
-                    : 'bg-gradient-to-r from-green-600/90 to-emerald-600/90 border-green-400/50'
-                }`}>
+                <div
+                  className={`absolute bottom-4 left-4 right-4 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl border-2 ${
+                    lastMetrics?.posture != 1
+                      ? 'bg-red-800/95 border-white'
+                      : 'bg-emerald-800/95 border-white'
+                  }`}
+                  role="alert"
+                >
                   <div className="flex items-start space-x-3">
                     {feedbackLoading ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mt-1"></div>
+                      <div className="motion-safe:animate-spin rounded-full h-6 w-6 border-b-2 border-white mt-1" aria-hidden="true"></div>
                     ) : (
-                      <div className="flex-shrink-0 mt-1">
+                      <div className="flex-shrink-0 mt-1" aria-hidden="true">
                         {lastMetrics?.posture != 1 ? (
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" focusable="false">
                             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                           </svg>
                         ) : (
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" focusable="false">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
                         )}
@@ -479,25 +511,25 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                     )}
                     <div className="flex-1">
                       <p className="font-bold text-base mb-1">
-                        {lastMetrics?.posture != 1 ? 'Posture Alert' : 'Posture Status'}
+                        {lastMetrics?.posture != 1 ? 'Posture Alert — needs adjustment' : 'Posture Status — good'}
                       </p>
-                      <p className="text-sm leading-relaxed opacity-95">{aiFeedback}</p>
+                      <p className="text-sm leading-relaxed">{aiFeedback}</p>
                       {lastMetrics && (
-                        <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-3 gap-3 text-xs">
+                        <div className="mt-3 pt-3 border-t border-white/30 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                           <div>
-                            <p className="opacity-70">Eye Strain</p>
+                            <p className="opacity-90">Eye Strain</p>
                             <p className="font-mono font-bold">{lastMetrics.eye_strain?.toFixed(1)}</p>
                           </div>
                           <div>
-                            <p className="opacity-70">Face Angle</p>
+                            <p className="opacity-90">Face Angle</p>
                             <p className="font-mono font-bold">{lastMetrics.face_pitch?.toFixed(1)}°</p>
                           </div>
                           <div>
-                            <p className="opacity-70">Neck Strain</p>
+                            <p className="opacity-90">Neck Strain</p>
                             <p className="font-mono font-bold">{lastMetrics.neck_strain?.toFixed(2)}</p>
                           </div>
                         </div>
-                      )}                      
+                      )}
                     </div>
                   </div>
                 </div>
@@ -507,31 +539,30 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
         </div>
 
         {/* Controls */}
-        <div className="bg-gray-50 px-6 py-6 border-t">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
+        <div className="bg-gray-50 px-4 sm:px-6 py-6 border-t">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-gray-800" role="status" aria-live="polite">
               <p className="mb-2">
-                <strong className="text-gray-900">Status:</strong>{' '}
-                {isPaused ? (
-                  <span className="text-orange-600 font-semibold">⏸ Paused</span>
-                ) : isConnected ? (
-                  <span className="text-green-600 font-semibold">● Connected & Recording</span>
-                ) : (
-                  <span className="text-yellow-600 font-semibold">● Connecting...</span>
-                )}
+                <strong className="text-gray-900">Connection:</strong>{' '}
+                <span className="font-semibold">{connectionLabel}</span>
+              </p>
+              <p className="mb-2">
+                <strong className="text-gray-900">Posture:</strong>{' '}
+                <span className="font-semibold">{postureText}</span>
               </p>
               <p>
                 <strong className="text-gray-900">Upload Rate:</strong>{' '}
-                <span className="text-purple-600 font-semibold">
+                <span className="text-purple-900 font-semibold">
                   {frameCount > 0 ? Math.round((uploadedCount / frameCount) * 100) : 0}%
                 </span>
               </p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
+                type="button"
                 onClick={handlePauseResume}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                className="min-h-[48px] px-6 py-3 bg-purple-800 text-white rounded-xl font-bold shadow-lg hover:bg-purple-900 transition-colors"
               >
                 <span className="flex items-center space-x-2">
                   {isPaused ? (
@@ -541,6 +572,8 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false"
                       >
                         <path
                           strokeLinecap="round"
@@ -564,6 +597,8 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false"
                       >
                         <path
                           strokeLinecap="round"
@@ -579,8 +614,9 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
               </button>
 
               <button
+                type="button"
                 onClick={onStopRecording}
-                className="px-8 py-3 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                className="min-h-[48px] px-8 py-3 bg-red-700 text-white rounded-xl font-bold shadow-lg hover:bg-red-800 transition-colors"
               >
                 <span className="flex items-center space-x-2">
                   <svg
@@ -588,6 +624,8 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
                   >
                     <path
                       strokeLinecap="round"

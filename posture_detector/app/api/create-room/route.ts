@@ -42,11 +42,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating room:', error);
     
     // Handle room already exists
-    if (error.message?.includes('already exists')) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('already exists')) {
       return NextResponse.json(
         { error: 'Room already exists', code: 'ROOM_EXISTS' },
         { status: 409 }

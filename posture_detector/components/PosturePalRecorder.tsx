@@ -37,28 +37,23 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
         if (navigator.permissions && navigator.permissions.query) {
           try {
             const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-            console.log('📹 Initial camera permission status:', permissionStatus.state);
             setCameraPermission(permissionStatus.state as 'prompt' | 'granted' | 'denied');
             
             // Listen for permission changes
             permissionStatus.onchange = () => {
-              console.log('📹 Camera permission changed to:', permissionStatus.state);
               setCameraPermission(permissionStatus.state as 'prompt' | 'granted' | 'denied');
             };
-          } catch (permErr) {
-            console.log('⚠️ Permission query not supported, will request directly');
+          } catch {
             setCameraPermission('prompt');
           }
         }
 
         // Now request camera access
-        console.log('📹 Requesting camera access...');
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: false 
         });
         
-        console.log('✅ Camera access granted!');
         setCameraPermission('granted');
         
         // Stop the test stream immediately
@@ -66,18 +61,19 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
         
         setCheckingPermission(false);
         
-      } catch (err: any) {
-        console.error('❌ Camera permission error:', err);
-        
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      } catch (err: unknown) {
+        const errorName = err instanceof Error ? err.name : '';
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+
+        if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
           setError('Camera permission was denied. Please allow camera access to use PosturePal.');
           setCameraPermission('denied');
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
           setError('No camera found. Please connect a camera to use PosturePal.');
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
           setError('Camera is already in use by another application. Please close other apps using the camera.');
         } else {
-          setError(`Camera error: ${err.message || 'Unknown error occurred'}`);
+          setError(`Camera error: ${errorMessage}`);
         }
         
         setCheckingPermission(false);
@@ -99,7 +95,6 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
         setLoading(true);
         setError('');
 
-        console.log('🔗 Fetching LiveKit token...');
         const response = await fetch(
           `/api/token?roomName=${encodeURIComponent(roomName)}&participantName=${encodeURIComponent(participantName)}`
         );
@@ -109,12 +104,10 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
         }
 
         const data = await response.json();
-        console.log('✅ LiveKit token received');
         setToken(data.token);
         setWsUrl(data.wsUrl);
         
-      } catch (err) {
-        console.error('❌ Error fetching token:', err);
+      } catch {
         setError('Failed to connect to LiveKit. Please check your configuration.');
       } finally {
         setLoading(false);
@@ -127,23 +120,24 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
   // Show camera permission checking
   if (checkingPermission) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto" role="status" aria-live="polite" aria-busy="true">
         <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl overflow-hidden border border-white/50 ring-1 ring-slate-900/5">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-orange-50/50"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 via-pink-50/30 to-orange-50/50" aria-hidden="true"></div>
 
           <div className="relative flex items-center justify-center h-96 px-8">
             <div className="text-center max-w-md">
-              {/* Animated Camera Icon */}
-              <div className="relative mb-8">
+              <div className="relative mb-8" aria-hidden="true">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-28 h-28 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full animate-ping"></div>
+                  <div className="w-28 h-28 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full motion-safe:animate-ping"></div>
                 </div>
-                <div className="relative w-28 h-28 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40 ring-4 ring-white/50">
+                <div className="relative w-28 h-28 bg-gradient-to-br from-purple-700 via-pink-700 to-orange-600 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40 ring-4 ring-white/50">
                   <svg
-                    className="w-14 h-14 text-white animate-pulse"
+                    className="w-14 h-14 text-white motion-safe:animate-pulse"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
                   >
                     <path
                       strokeLinecap="round"
@@ -155,28 +149,25 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
                 </div>
               </div>
 
-              {/* Text Content */}
-              <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-900 via-pink-900 to-orange-900 bg-clip-text text-transparent mb-4">
+              <h2 className="text-2xl sm:text-3xl font-bold text-purple-950 mb-4">
                 Requesting Camera Access
-              </h3>
-              <p className="text-slate-600 text-base leading-relaxed mb-6">
+              </h2>
+              <p className="text-slate-700 text-base leading-relaxed mb-6">
                 Please allow camera access when prompted by your browser
               </p>
 
-              {/* Loading Indicator */}
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-pink-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              <div className="flex items-center justify-center space-x-2 mb-4" aria-hidden="true">
+                <div className="w-2 h-2 bg-purple-700 rounded-full motion-safe:animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-pink-700 rounded-full motion-safe:animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-orange-600 rounded-full motion-safe:animate-bounce" style={{ animationDelay: '300ms' }}></div>
               </div>
 
-              {/* Help Text */}
-              <div className="mt-8 p-4 bg-purple-50/50 backdrop-blur-sm rounded-2xl border border-purple-200/50">
+              <div className="mt-8 p-4 bg-purple-50 backdrop-blur-sm rounded-2xl border border-purple-300">
                 <div className="flex items-start space-x-3">
-                  <svg className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-purple-800 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
-                  <p className="text-sm text-purple-900 text-left font-medium">
+                  <p className="text-sm text-purple-950 text-left font-medium">
                     Look for a popup in your browser asking for camera permission. Click <strong>Allow</strong> to continue.
                   </p>
                 </div>
@@ -192,13 +183,19 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
   if (cameraPermission === 'denied' || error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-red-200">
+        <div
+          className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-red-700"
+          role="alert"
+          aria-live="assertive"
+        >
           <div className="bg-red-50 p-8">
             <div className="flex items-start">
               <svg 
-                className="w-8 h-8 text-red-500 mr-4 mt-1 flex-shrink-0" 
+                className="w-8 h-8 text-red-700 mr-4 mt-1 flex-shrink-0" 
                 fill="currentColor" 
                 viewBox="0 0 20 20"
+                aria-hidden="true"
+                focusable="false"
               >
                 <path 
                   fillRule="evenodd" 
@@ -207,30 +204,32 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
                 />
               </svg>
               <div className="flex-1">
-                <h3 className="text-red-800 font-bold mb-3 text-xl">Camera Access Required</h3>
-                <p className="text-red-700 mb-4 text-base leading-relaxed">{error || 'Camera permission was denied.'}</p>
+                <h2 className="text-red-900 font-bold mb-3 text-xl">Camera Access Required</h2>
+                <p className="text-red-900 mb-4 text-base leading-relaxed">{error || 'Camera permission was denied.'}</p>
                 
                 {cameraPermission === 'denied' && (
-                  <div className="bg-white rounded-lg p-4 mb-4 border border-red-200">
-                    <p className="text-sm font-semibold text-gray-900 mb-2">📍 How to enable camera access:</p>
-                    <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
-                      <li>Click the camera icon 🎥 or lock icon 🔒 in your browser's address bar</li>
-                      <li>Select "Allow" for camera permissions</li>
+                  <div className="bg-white rounded-lg p-4 mb-4 border border-red-300">
+                    <p className="text-sm font-semibold text-gray-900 mb-2">How to enable camera access:</p>
+                    <ol className="text-sm text-gray-800 space-y-1 list-decimal list-inside">
+                      <li>Click the camera or lock icon in your browser&apos;s address bar</li>
+                      <li>Select &quot;Allow&quot; for camera permissions</li>
                       <li>Refresh this page</li>
                     </ol>
                   </div>
                 )}
                 
-                <div className="flex space-x-3">
+                <div className="flex flex-wrap gap-3">
                   <button
+                    type="button"
                     onClick={onStop}
-                    className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+                    className="min-h-[44px] min-w-[44px] px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors font-semibold"
                   >
                     Go Back
                   </button>
                   <button
+                    type="button"
                     onClick={() => window.location.reload()}
-                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+                    className="min-h-[44px] min-w-[44px] px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-semibold"
                   >
                     Refresh Page
                   </button>
@@ -246,13 +245,16 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
   // Show loading while fetching LiveKit token
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+      <div className="max-w-4xl mx-auto" role="status" aria-live="polite" aria-busy="true">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-300">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-4"></div>
-              <p className="text-gray-600 text-lg">Connecting to LiveKit Cloud...</p>
-              <p className="text-gray-500 text-sm mt-2">Setting up your posture monitoring session</p>
+              <div
+                className="motion-safe:animate-spin rounded-full h-16 w-16 border-b-4 border-purple-700 mx-auto mb-4"
+                aria-hidden="true"
+              ></div>
+              <p className="text-gray-800 text-lg font-medium">Connecting to LiveKit Cloud...</p>
+              <p className="text-gray-700 text-sm mt-2">Setting up your posture monitoring session</p>
             </div>
           </div>
         </div>
@@ -262,10 +264,10 @@ export default function PosturePalRecorder({ onStop }: PosturePalRecorderProps) 
 
   if (!token || !wsUrl) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-          <div className="bg-yellow-50 p-8">
-            <p className="text-yellow-800">Waiting for connection details...</p>
+      <div className="max-w-4xl mx-auto" role="status" aria-live="polite">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-amber-700">
+          <div className="bg-amber-50 p-8">
+            <p className="text-amber-950 font-medium">Waiting for connection details...</p>
           </div>
         </div>
       </div>
