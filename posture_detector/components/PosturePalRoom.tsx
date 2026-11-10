@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   useRoomContext,
-  useLocalParticipant,
   useTracks
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
@@ -13,9 +12,16 @@ interface PosturePalRoomProps {
   onStopRecording: () => void;
 }
 
+interface PostureMetrics {
+  posture?: number;
+  eye_strain?: number;
+  face_pitch?: number;
+  neck_strain?: number;
+  [key: string]: unknown;
+}
+
 export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps) {
   const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,7 +41,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
   const [sessionId] = useState(`posturepal-${Date.now()}`);
   const [aiFeedback, setAiFeedback] = useState<string>('');
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [lastMetrics, setLastMetrics] = useState<any>(null);
+  const [lastMetrics, setLastMetrics] = useState<PostureMetrics | null>(null);
   const [alertAnnouncement, setAlertAnnouncement] = useState<string>('');
   const [postureStatusLabel, setPostureStatusLabel] = useState<'unknown' | 'good' | 'needs-adjustment'>('unknown');
 
@@ -208,7 +214,7 @@ export default function PosturePalRoom({ onStopRecording }: PosturePalRoomProps)
     }
   };
 
-  const getAIFeedback = async (metrics: any): Promise<string> => {
+  const getAIFeedback = async (metrics: PostureMetrics): Promise<string> => {
     try {
       console.log('🤖 Requesting AI feedback for metrics:', metrics);
       setFeedbackLoading(true);
