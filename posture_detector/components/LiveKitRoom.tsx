@@ -53,10 +53,10 @@ export default function LiveKitRoom({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-96" role="status" aria-live="polite" aria-busy="true">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Connecting to LiveKit Cloud...</p>
+          <div className="motion-safe:animate-spin rounded-full h-12 w-12 border-b-2 border-purple-800 mx-auto mb-4" aria-hidden="true"></div>
+          <p className="text-gray-800">Connecting to LiveKit Cloud...</p>
         </div>
       </div>
     );
@@ -65,12 +65,13 @@ export default function LiveKitRoom({
   if (error) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h3 className="text-red-800 font-semibold mb-2">❌ Connection Error</h3>
-          <p className="text-red-700 mb-4">{error}</p>
+        <div className="bg-red-50 border-2 border-red-700 rounded-lg p-6" role="alert">
+          <h2 className="text-red-900 font-semibold mb-2">Connection Error</h2>
+          <p className="text-red-900 mb-4">{error}</p>
           <button
+            type="button"
             onClick={onDisconnect}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="min-h-[44px] px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800"
           >
             Go Back
           </button>
@@ -81,9 +82,9 @@ export default function LiveKitRoom({
 
   if (!token || !wsUrl) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <p className="text-yellow-800">Waiting for connection details...</p>
+      <div className="max-w-2xl mx-auto" role="status" aria-live="polite">
+        <div className="bg-amber-50 border-2 border-amber-700 rounded-lg p-6">
+          <p className="text-amber-950">Waiting for connection details...</p>
         </div>
       </div>
     );

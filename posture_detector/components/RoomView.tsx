@@ -202,29 +202,30 @@ export default function RoomView({ onStopRecording }: RoomViewProps) {
             playsInline
             muted
             className="w-full h-full object-contain"
+            aria-label="Live camera preview for recording"
           />
           
-          <canvas ref={canvasRef} className="hidden" />
+          <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
           
           {!isConnected && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/75" role="status" aria-live="polite">
               <div className="text-center text-white">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                <div className="motion-safe:animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" aria-hidden="true"></div>
                 <p>Initializing camera...</p>
               </div>
             </div>
           )}
 
           {isConnected && (
-            <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center space-x-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <div className="absolute top-4 right-4 bg-red-700 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center space-x-2">
+              <span className="w-2 h-2 bg-white rounded-full motion-safe:animate-pulse" aria-hidden="true"></span>
               <span>REC</span>
             </div>
           )}
 
           {isCapturing && (
-            <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center space-x-2">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <div className="absolute top-4 left-4 bg-blue-800 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center space-x-2">
+              <span className="w-2 h-2 bg-white rounded-full motion-safe:animate-pulse" aria-hidden="true"></span>
               <span>CAPTURING @ {FPS} FPS</span>
             </div>
           )}
@@ -271,10 +272,11 @@ export default function RoomView({ onStopRecording }: RoomViewProps) {
             </div>
 
             <button
+              type="button"
               onClick={onStopRecording}
-              className="bg-red-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+              className="min-h-[48px] bg-red-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-red-800 transition-colors"
             >
-              ⏹️ Stop Recording
+              Stop Recording
             </button>
           </div>
         </div>
